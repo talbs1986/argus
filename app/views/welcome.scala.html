@@ -1,0 +1,16 @@
+@(title:String,hosts: Seq[String] = Seq())
+
+<h1>@title</h1>
+<div>
+<article>
+
+    <h2>Detected Hosts</h2>
+
+    <p>
+
+        @for(host <- hosts) {
+        @host <br/>
+        }
+    </p>
+</article>
+</div>

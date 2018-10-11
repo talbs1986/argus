@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  tmp:
+    image: argus:0.1
+    container_name: tmp
+    hostname: tmp
+    ports:
+    - "9002:9000"
+    networks:
+      svcs:
+        aliases:
+          - tmp
+
+  tmp2:
+    image: argus:0.1
+    container_name: tmp2
+    hostname: tmp2
+    ports:
+    - "9001:9000"
+    networks:
+      svcs:
+        aliases:
+        - tmp2
+
+networks:
+  svcs:

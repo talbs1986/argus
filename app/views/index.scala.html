@@ -1,0 +1,28 @@
+
+@(hosts: Seq[String])(implicit assetsFinder: AssetsFinder)
+
+
+@main("Welcome to Argus Resources", assetsFinder) {
+
+    @welcome("Welcome to Argus Resources",hosts)
+
+
+<div><article>
+    <h2>Put resource</h2>
+    @helper.form(action = routes.AppController.putResourceFromForm()) {
+       resource <input type="text" name="resourceName" /><br/>
+       payload <input type="text" name="payload" /><br/>
+
+        <input type="submit" value="Send" />
+    }
+</article></div>
+
+    <br/>
+<div><article>
+    <h2>Get resource</h2>
+    @helper.form(action = routes.AppController.getResourceFromForm()) {
+        resource <input type="text" name="resourceName" /><br/>
+        <input type="submit" value="Send" />
+    }
+</article></div>
+}
