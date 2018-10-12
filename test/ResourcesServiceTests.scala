@@ -10,9 +10,7 @@ import org.scalatest.{BeforeAndAfterEach, OneInstancePerTest}
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
-import play.api.inject.bind
 import play.api.inject.guice.GuiceApplicationBuilder
-import play.api.libs.ws.WSClient
 import services.ResourceService
 import utils.Configs
 
@@ -34,7 +32,6 @@ class ResourcesServiceTests extends PlaySpec with GuiceOneAppPerSuite with Match
             .asEagerSingleton()
         }
       })
-      .overrides(bind[WSClient].to[MockWsClient])
       .build()
   }
 
