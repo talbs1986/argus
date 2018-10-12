@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-sbt runProd -Dhttp.port=8080
+target/universal/stage/bin/argus -Dhttp.port=8080
