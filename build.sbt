@@ -17,5 +17,9 @@ val server = project.in(file("."))
     "com.talbs" %% "argus-api" % "0.1",
     
     //client
-    "com.talbs" %% "argus-client" % "0.1"
+    "com.talbs" %% "argus-client" % "0.1",
+    
+    //testing
+    "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % Test,
+      "org.scalamock" %% "scalamock" % "4.1.0" % Test
   ))

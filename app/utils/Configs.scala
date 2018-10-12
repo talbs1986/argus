@@ -14,7 +14,8 @@ object Configs {
   val config = ConfigFactory.load().resolve()
 
   val serverId = InetAddress.getLocalHost.getHostName
-  val dataNodes = config.getObject("argus.hosts.datanodes").entrySet().toSeq.filter {
+  //making this testable
+  var dataNodes = config.getObject("argus.hosts.datanodes").entrySet().toSeq.filter {
     entry => entry.getKey != serverId
   }.map {
     entry => normalizeHost(entry.getValue.unwrapped().asInstanceOf[String])

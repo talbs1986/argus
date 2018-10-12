@@ -6,7 +6,7 @@ import com.talbs.argus.resources.api.IService
 import com.talbs.argus.resources.api.tos._
 import com.talbs.argus.resources.client.ClientFactory
 import javax.inject._
-import play.api.Logger
+import play.api.{Environment, Logger}
 import play.api.inject.ApplicationLifecycle
 import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
@@ -23,7 +23,7 @@ import scala.io.Source
   * @param wsClient     async client for accessing datanodes
   * @param appLifecycle application lifecycle
   */
-class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLifecycle) extends IService {
+class ResourceService @Inject()(val wsClient: WSClient,val appLifecycle: ApplicationLifecycle) extends IService {
 
   protected val clients: Seq[IService] = Configs.dataNodes.map {
     host => ClientFactory.build(host)(wsClient)
@@ -70,9 +70,9 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   override def getResource(request: GetResourceRequest): Future[GetResourceResponse] = {
     readResourceLocally(request,checkExistance = true).flatMap {
       putRequestOpt =>
-        val putRequest = putRequestOpt.get
         //check if resource found locally
         if (putRequestOpt.isDefined) {
+          val putRequest = putRequestOpt.get
           //need to check also remotely because there might be
           //conflicts in the data , and more updated data on different node
           readResourceRemotely(request).flatMap {

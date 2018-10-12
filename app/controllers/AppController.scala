@@ -1,15 +1,16 @@
 package controllers
 
 import akka.actor.ActorSystem
+import com.fasterxml.jackson.core.JsonParseException
+import com.fasterxml.jackson.databind.JsonMappingException
 import com.talbs.argus.resources.api.IService
 import com.talbs.argus.resources.api.tos.{GetResourceRequest, PutResourceRequest, RemoveResourceRequest}
 import javax.inject._
 import play.api.data.Form
+import play.api.data.Forms._
 import play.api.libs.json.Json
 import play.api.mvc._
 import utils.Configs
-import play.api.data._
-import play.api.data.Forms._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -18,10 +19,10 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   * this controller handles the HTTP requests coming from
   * Forms and API
   *
-  * @param cc          standard controller components
-  * @param actorSystem actor system to schedule run async requests
+  * @param cc              standard controller components
+  * @param actorSystem     actor system to schedule run async requests
   * @param resourceService resource service that implements [[IService]]
-  * @param exec        *implicit* execution context to handle async requests
+  * @param exec            *implicit* execution context to handle async requests
   */
 @Singleton
 class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
@@ -62,8 +63,10 @@ class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
   /**
     * api call to put resource
     */
-  def putResource(resource: String) = Action.async(parse.json) { request =>
-    putResourceAsync(resource, request.body.toString(), 1.millisecond).map { msg => Ok(msg) }
+  def putResource(resource: String) = Action.async(parse.json) {
+    //no need to validate request since play automatically validates it using BodyParser.json
+    request =>
+      putResourceAsync(resource, request.body.toString(), 1.millisecond).map { msg => Ok(msg) }
   }
 
   /**
@@ -78,10 +81,18 @@ class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
     */
   def putResourceFromForm = Action.async { implicit request =>
     val dynamicForm = putResourceForm.bindFromRequest.get
-    putResourceAsync(dynamicForm.resource, dynamicForm.payload, 1 millisecond)
-      .map {
-        response => Ok(response)
-      }
+    try {
+      //since its a MVC form based api need to validate we got proper json
+      Json.parse(dynamicForm.payload)
+      putResourceAsync(dynamicForm.resource, dynamicForm.payload, 1 millisecond)
+        .map {
+          response => Ok(response)
+        }
+    } catch {
+      case _: JsonMappingException => Future.successful(BadRequest("invalid json"))
+      case _: JsonParseException => Future.successful(BadRequest("invalid json"))
+    }
+
   }
 
   /**
@@ -104,8 +115,9 @@ class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
 
   /**
     * async get resource
-    * @param resource resource name
-    * @param delayTime delay to schedule async block
+    *
+    * @param resource    resource name
+    * @param delayTime   delay to schedule async block
     * @param internalApi should perform get resource only locally
     * @return [[com.talbs.argus.resources.api.tos.GetResourceResponse]] json string
     */
@@ -129,8 +141,9 @@ class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
 
   /**
     * async put resource
-    * @param resource resource name
-    * @param body [[PutResourceRequest]] json string
+    *
+    * @param resource  resource name
+    * @param body      [[PutResourceRequest]] json string
     * @param delayTime delay to schedule async block
     * @return [[com.talbs.argus.resources.api.tos.PutResourceResponse]] json string
     */
@@ -148,7 +161,8 @@ class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
 
   /**
     * async remove resource
-    * @param resource resource name
+    *
+    * @param resource  resource name
     * @param delayTime delay to schedule async block
     * @return [[com.talbs.argus.resources.api.tos.RemoveResourceResponse]] json string
     */
