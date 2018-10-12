@@ -8,6 +8,9 @@ this project is for evaluation and testing purposes only.
 
 * Quick start - Linux / osX
 
+    run scripts from <PROJECT_ROOT>.
+    where <PROJECT_ROOT> should be replaced with the full path of the project sources.
+
     * Build
     sh <PROJECT_ROOT>/build.sh
 
@@ -17,21 +20,21 @@ this project is for evaluation and testing purposes only.
     * Run (non persistent)
     sh <PROJECT_ROOT>/run.sh
 
-
-<PROJECT_ROOT> should be replaced with the full path of the project sources.
-
-
 * Quick start - Windows
 stop wasting your time and move to linux :)
 
 
-* Persistence
+* Persistence - Docker
 Due to docker's nature of being isolated container, the data will be erased once the container is destroyed.
-if you would like to store the data forever please follow this instructions
+please set a bridge volume between the docker container path and the host using the following pseudo command
 
-    * Run
-    sh <PROJECT_ROOT>/run.sh <PATH_TO_STORE_DATA>
-<PATH_TO_STORE_DATA> should be replaced with the full path of the location to store all the data on the local disk.
+docker run ... -v <local host path>:<path on docker container> ...
 
 
 * Configuration
+    configuration can be overridden using direct manipulation of the conf/application.conf
+    or using system properties -D<config entry>=<value>
+
+    theres also a possibility to change configs using env variable but only to selected set of configs:
+
+    ARGUS_DATA_PATH=<valid path on local disk>

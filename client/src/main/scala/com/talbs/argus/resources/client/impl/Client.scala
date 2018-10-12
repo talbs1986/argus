@@ -66,7 +66,7 @@ case class Client protected[client](host : String, requestTimeoutMS : Long)(impl
 
   override def removeResource(request: RemoveResourceRequest): Future[RemoveResourceResponse] = {
     client
-      .url(s"$host/api/${request.resourceName}")
+      .url(s"$host/_api/${request.resourceName}")
       .addHttpHeaders("Accept" -> "application/json")
       .withRequestTimeout(requestTimeoutMS millisecond)
       .delete()

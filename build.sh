@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-sbt dist
+sbt clean compile stage

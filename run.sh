@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-sbt runProd
+sbt runProd -Dhttp.port=8080

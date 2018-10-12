@@ -1,6 +1,6 @@
 package services
 
-import java.io.{BufferedWriter, File, FileWriter}
+import java.io.{BufferedWriter, File, FileNotFoundException, FileWriter}
 
 import com.talbs.argus.resources.client.ClientFactory
 import com.talbs.argus.resources.api.IService
@@ -33,40 +33,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   Logger.info(s"Found clients ${clients.mkString}")
 
   //build the local data catalog
-  protected val localCatalog: mutable.Map[String, PutResourceResponse] = {
-    //validate data path is correct
-    val directory = new File(Configs.dataPath)
-    if (!directory.isDirectory)
-      throw new Exception("Data config path is not a directory")
-    if (!directory.exists())
-      throw new Exception("Data config path does not exists")
-    if (!directory.canRead)
-      throw new Exception("Data config path doesnt have read permissions")
-    if (!directory.canWrite)
-      throw new Exception("Data config path doesnt have write permissions")
-
-    //build futures for all the local resources found
-    val resourcesFuts = directory.listFiles().filter {
-      file => file.isFile
-    }.map {
-      file =>
-        readResourceLocally(GetResourceRequest(file.getName)).recoverWith {
-          case ex =>
-            Logger.warn(s"Ignoring resource ${file.getName} due to ${ex.getMessage}")
-            Future.successful(None)
-        }
-    }.toSeq
-
-    //build the local catalog data structure
-    Await.result(Future.sequence(resourcesFuts).map {
-      resources =>
-        val resourceEntries: Seq[(String, PutResourceResponse)] = resources.flatten.map {
-          resource =>
-            (resource.resourceName, PutResourceResponse(resource.owner, resource.updateTime))
-        }
-        mutable.Map[String, PutResourceResponse](resourceEntries: _*)
-    }, Duration.Inf)
-  }
+  protected val localCatalog: mutable.Map[String, PutResourceResponse] = readLocalCatalog()
 
   //add shutdown hook
   appLifecycle.addStopHook { () =>
@@ -102,12 +69,11 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   }
 
   override def getResource(request: GetResourceRequest): Future[GetResourceResponse] = {
-    //check if resource found locally
-    if (localCatalog.contains(request.resourceName)) {
-      readResourceLocally(request).flatMap {
-        putRequestOpt =>
-          val putRequest = putRequestOpt.get
-
+    readResourceLocally(request,forceCatalogValidation = true).flatMap {
+      putRequestOpt =>
+        val putRequest = putRequestOpt.get
+        //check if resource found locally
+        if (putRequestOpt.isDefined) {
           //need to check also remotely because there might be
           //conflicts in the data , and more updated data on different node
           readResourceRemotely(request).flatMap {
@@ -126,10 +92,10 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
                 }
               }
           }
-      }
+        }
+        else //not found locally , only get from other nodes
+          readResourceRemotely(request)
     }
-    else //not found locally , only get from other nodes
-      readResourceRemotely(request)
   }
 
 
@@ -153,7 +119,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   override def getResourceDirectNode(request: GetResourceRequest): Future[GetResourceResponse] = {
     //read from local disk
     //return payload or not found
-    readResourceLocally(request).map {
+    readResourceLocally(request,forceCatalogValidation = true).map {
       response =>
         if (response.isDefined)
           GetResourceResponse(response.get.payload, response.get.owner, response.get.updateTime, Configs.serverId)
@@ -164,18 +130,25 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
 
   /**
     * read resource from local disk
+    *
     * @param request [[GetResourceRequest]]
+    * @param forceCatalogValidation validate resource exists in local cache first
     * @return Option [[PutResourceRequest]]
     */
-  private def readResourceLocally(request: GetResourceRequest): Future[Option[PutResourceRequest]] = {
-    Future {
-      val fileContent = Source.fromFile(Configs.dataPath + File.separator + request.resourceName).mkString
-      Some(Json.fromJson[PutResourceRequest](Json.parse(fileContent)).get)
+  private def readResourceLocally(request: GetResourceRequest,forceCatalogValidation : Boolean): Future[Option[PutResourceRequest]] = {
+    if (!forceCatalogValidation || localCatalog.contains(request.resourceName)) {
+      Future {
+        val fileContent = Source.fromFile(Configs.dataPath + File.separator + request.resourceName).mkString
+        Some(Json.fromJson[PutResourceRequest](Json.parse(fileContent)).get)
+      }
     }
+    else
+      Future.successful(None)
   }
 
   /**
     * read resource from remote nodes
+    *
     * @param request [[GetResourceRequest]]
     * @return Future [[GetResourceResponse]]
     */
@@ -204,5 +177,48 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
     }
     else //no other data nodes , return not found
       Future.successful(GetResourceResponse.notFound(Configs.serverId))
+  }
+
+  /**
+    * read the entire local catalog
+    * @return local catalog
+    */
+  private def readLocalCatalog(): mutable.Map[String, PutResourceResponse] = {
+    //validate data path is correct
+    val directory = new File(Configs.dataPath)
+    if (!directory.isDirectory)
+      throw new Exception("Data config path is not a directory")
+    if (!directory.exists())
+      throw new Exception("Data config path does not exists")
+    if (!directory.canRead)
+      throw new Exception("Data config path doesnt have read permissions")
+    if (!directory.canWrite)
+      throw new Exception("Data config path doesnt have write permissions")
+
+    //build futures for all the local resources found
+    val resourcesFuts = directory.listFiles().filter {
+      file => file.isFile
+    }.map {
+      file =>
+        readResourceLocally(GetResourceRequest(file.getName),forceCatalogValidation = false).recoverWith {
+          case ex =>
+            Logger.warn(s"Ignoring resource ${file.getName} due to ${ex.getMessage}")
+            Future.successful(None)
+        }
+    }.toSeq
+
+    //build the local catalog data structure
+    if (resourcesFuts.nonEmpty) {
+      Await.result(Future.sequence(resourcesFuts).map {
+        resources =>
+          val resourceEntries: Seq[(String, PutResourceResponse)] = resources.flatten.map {
+            resource =>
+              (resource.resourceName, PutResourceResponse(resource.owner, resource.updateTime))
+          }
+          mutable.Map[String, PutResourceResponse](resourceEntries: _*)
+      }, Duration.Inf)
+    }
+    else
+      mutable.Map.empty
   }
 }

@@ -69,7 +69,7 @@ class AppController @Inject()(cc: ControllerComponents, actorSystem: ActorSystem
   /**
     * api call to remove resource
     */
-  def removeResource(resource: String) = Action.async {
+  def _removeResource(resource: String) = Action.async {
     removeResourceAsync(resource, 1.millisecond).map { msg => Ok(msg) }
   }
 

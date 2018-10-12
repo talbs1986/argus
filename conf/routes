@@ -1,10 +1,12 @@
+#UI api
 GET     /                           controllers.AppController.index
-
-#get resource
-GET     /api/*resource              controllers.AppController.getResource(resource)
-GET     /_api/*resource              controllers.AppController._getResource(resource)
-POST     /api/*resource              controllers.AppController.putResource(resource)
-DELETE     /api/*resource              controllers.AppController.removeResource(resource)
-
 POST     /getResourceForm              controllers.AppController.getResourceFromForm
 POST     /putResourceForm              controllers.AppController.putResourceFromForm
+
+#public api
+GET     /api/*resource              controllers.AppController.getResource(resource)
+POST     /api/*resource              controllers.AppController.putResource(resource)
+
+#private api
+GET     /_api/*resource              controllers.AppController._getResource(resource)
+DELETE     /_api/*resource              controllers.AppController._removeResource(resource)
