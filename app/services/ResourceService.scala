@@ -1,10 +1,10 @@
 package services
 
-import java.io.{BufferedWriter, File, FileNotFoundException, FileWriter}
+import java.io.{BufferedWriter, File, FileWriter}
 
-import com.talbs.argus.resources.client.ClientFactory
 import com.talbs.argus.resources.api.IService
 import com.talbs.argus.resources.api.tos._
+import com.talbs.argus.resources.client.ClientFactory
 import javax.inject._
 import play.api.Logger
 import play.api.inject.ApplicationLifecycle
@@ -12,7 +12,6 @@ import play.api.libs.json.Json
 import play.api.libs.ws.WSClient
 import utils.Configs
 
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
@@ -33,7 +32,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   Logger.info(s"Found clients ${clients.mkString}")
 
   //build the local data catalog
-  protected val localCatalog: mutable.Map[String, PutResourceResponse] = readLocalCatalog()
+  protected val localCatalog: collection.concurrent.TrieMap[String, PutResourceResponse] = readLocalCatalog()
 
   //add shutdown hook
   appLifecycle.addStopHook { () =>
@@ -69,7 +68,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   }
 
   override def getResource(request: GetResourceRequest): Future[GetResourceResponse] = {
-    readResourceLocally(request,forceCatalogValidation = true).flatMap {
+    readResourceLocally(request,checkExistance = true).flatMap {
       putRequestOpt =>
         val putRequest = putRequestOpt.get
         //check if resource found locally
@@ -119,7 +118,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
   override def getResourceDirectNode(request: GetResourceRequest): Future[GetResourceResponse] = {
     //read from local disk
     //return payload or not found
-    readResourceLocally(request,forceCatalogValidation = true).map {
+    readResourceLocally(request,checkExistance = true).map {
       response =>
         if (response.isDefined)
           GetResourceResponse(response.get.payload, response.get.owner, response.get.updateTime, Configs.serverId)
@@ -132,11 +131,11 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
     * read resource from local disk
     *
     * @param request [[GetResourceRequest]]
-    * @param forceCatalogValidation validate resource exists in local cache first
+    * @param checkExistance validate resource exists in local cache first
     * @return Option [[PutResourceRequest]]
     */
-  private def readResourceLocally(request: GetResourceRequest,forceCatalogValidation : Boolean): Future[Option[PutResourceRequest]] = {
-    if (!forceCatalogValidation || localCatalog.contains(request.resourceName)) {
+  private def readResourceLocally(request: GetResourceRequest, checkExistance : Boolean): Future[Option[PutResourceRequest]] = {
+    if (!checkExistance || localCatalog.contains(request.resourceName)) {
       Future {
         val fileContent = Source.fromFile(Configs.dataPath + File.separator + request.resourceName).mkString
         Some(Json.fromJson[PutResourceRequest](Json.parse(fileContent)).get)
@@ -183,7 +182,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
     * read the entire local catalog
     * @return local catalog
     */
-  private def readLocalCatalog(): mutable.Map[String, PutResourceResponse] = {
+  private def readLocalCatalog(): collection.concurrent.TrieMap[String, PutResourceResponse] = {
     //validate data path is correct
     val directory = new File(Configs.dataPath)
     if (!directory.isDirectory)
@@ -200,7 +199,7 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
       file => file.isFile
     }.map {
       file =>
-        readResourceLocally(GetResourceRequest(file.getName),forceCatalogValidation = false).recoverWith {
+        readResourceLocally(GetResourceRequest(file.getName),checkExistance = false).recoverWith {
           case ex =>
             Logger.warn(s"Ignoring resource ${file.getName} due to ${ex.getMessage}")
             Future.successful(None)
@@ -215,10 +214,10 @@ class ResourceService @Inject()(wsClient: WSClient, appLifecycle: ApplicationLif
             resource =>
               (resource.resourceName, PutResourceResponse(resource.owner, resource.updateTime))
           }
-          mutable.Map[String, PutResourceResponse](resourceEntries: _*)
+          collection.concurrent.TrieMap[String, PutResourceResponse](resourceEntries: _*)
       }, Duration.Inf)
     }
     else
-      mutable.Map.empty
+      collection.concurrent.TrieMap.empty
   }
 }
